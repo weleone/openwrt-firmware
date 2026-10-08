@@ -1,0 +1,42 @@
+name: Build OpenWrt Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v2026.10.09)'
+        required: true
+      notes:
+        description: 'Release notes'
+        required: false
+        default: 'Docker / PassWall / OpenClash'
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Check disk space
+        run: df -h /home/gao | tail -1
+
+      - name: Update feeds
+        run: |
+          cd /home/gao/lede
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a -f
+
+      - name: Build firmware
+        run: |
+          cd /home/gao/lede
+          make -j$(nproc) V=s
+
+      - name: Create Release and upload
+        run: |
+          cd /home/gao/lede/bin/targets/x86/64
+          gh release create "${{ github.event.inputs.tag }}" \
+            --title "lede x86_64 ${{ github.event.inputs.tag }}" \
+            --notes "${{ github.event.inputs.notes }}" \
+            openwrt-x86-64-generic-squashfs-combined-efi.img \
+            sha256sums \
+            openwrt-x86-64-generic.manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
